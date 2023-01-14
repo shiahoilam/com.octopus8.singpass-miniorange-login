@@ -1,0 +1,2 @@
+This is miniOrange OAuth plugin Debug Log file
+[2023-01-14 09:16:48 UTC] : Authorization Request Sent => https://stg-id.singpass.gov.sg/auth?client_id=hCqn1a2gQFi6QLPeaw3LIWP3LQ2E5f0r&scope=&redirect_uri=http://wp-demo.localhost:7979&response_type=code&state=U2luZ1Bhc3M=
