@@ -545,17 +545,28 @@ function mooauth_login_validate()
                     MOOAuth_Debug::mo_oauth_log('Username not received. Check your Attribute Mapping configuration.');
                     exit('Username not received. Check your <b>Attribute Mapping</b> configuration.');
                 }
+                try {
+                    $user = get_user_by("login", $username);
+                } catch (Exception $e) {
 
-                $user = get_user_by("login", $username);
+                }
 
                 if ($user) {
                     $user_id = $user->ID;
                 } else {
                     $user_id = 0;
                     if (mooauth_migrate_customers()) {
-                        $user = mooauth_looped_user($username);
+                        try {
+                            $user = mooauth_looped_user($username);
+                        } catch (Exception $e) {
+
+                        }
                     } else {
-                        $user = mooauth_handle_user_registration($username);
+                        try {
+                            $user = mooauth_handle_user_registration($username);
+                        } catch (Exception $e) {
+
+                        }
                     }
                 }
                 if ($user) {
@@ -606,8 +617,17 @@ function mooauth_handle_user_registration($username)
         MOOAuth_Debug::mo_oauth_log('ERROR : The username received has a length greater than 60 characters.');
         wp_die($message = 'You are not allowed to login. Please contact your administrator');
     }
-
-    $user_id = wp_create_user($username, $random_password);
+    if (class_exists('MosingpassPlugin')) {
+        try {
+            if (class_exists('MosingpassPlugin')) {
+                $user_id = wp_create_user($username, $random_password, $username . "@octopus8.com");
+            }
+        } catch (Exception $e) {
+            $user_id = wp_create_user($username, $random_password, "test@octopus8.com");
+        }
+    } else {
+        $user_id = wp_create_user($username, $random_password);
+    }
     $user = get_user_by('login', $username);
     wp_update_user(array('ID' => $user_id));
     return $user;

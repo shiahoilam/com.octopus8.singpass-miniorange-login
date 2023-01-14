@@ -155,12 +155,12 @@ class MosingpassPlugin
                 $private_enc_jwk = json_decode(json_encode($private_jwk), true);
             }
         }
-        self::writeLog($sig_kid, 'sig_kid');
-        self::writeLog($enc_kid, 'enc_kid');
-        self::writeLog($public_sig_jwk, 'sig_kid');
-        self::writeLog($public_enc_jwk, 'enc_kid');
-        self::writeLog($private_sig_jwk, 'sig_kid');
-        self::writeLog($private_enc_jwk, 'enc_kid');
+//        self::writeLog($sig_kid, 'sig_kid');
+//        self::writeLog($enc_kid, 'enc_kid');
+//        self::writeLog($public_sig_jwk, 'sig_kid');
+//        self::writeLog($public_enc_jwk, 'enc_kid');
+//        self::writeLog($private_sig_jwk, 'sig_kid');
+//        self::writeLog($private_enc_jwk, 'enc_kid');
 
         return array($sig_kid, $public_sig_jwk, $enc_kid, $public_enc_jwk, $private_sig_jwk, $private_enc_jwk);
     }
@@ -385,7 +385,7 @@ class MosingpassPlugin
 
         try {
             $jwe = $encryption_serializer->unserialize($token);
-            self::writeLog($jwe, 'JWE');
+//            self::writeLog($jwe, 'JWE');
         } catch (Exception $e) {
             print('nonserializable with deserialized_JWE');
         }
@@ -430,7 +430,7 @@ class MosingpassPlugin
                 $success_key,
                 $recipient);
             $unencrypted_payload = $jw_decrypted_response->getPayload();
-            self::writeLog($unencrypted_payload, 'success_key');
+//            self::writeLog($unencrypted_payload, 'success_key');
         } catch (Exception $e) {
             print('nonserializable with public_enc_JWK');
         }

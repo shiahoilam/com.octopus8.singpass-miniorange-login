@@ -93,4 +93,5 @@ includes.zip
 
 _composer.json
 _composer.lock
-vendor/
+# vendor/
+*.log
