@@ -71,6 +71,10 @@ class MosingpassPlugin
                 'callback' => array($this, 'oidc_signin_callback'),
             ));
         });
+        $show_qr_code = get_option(MosingpassPlugin::SHOW_QR);
+        if ($show_qr_code) {
+            add_action('login_head', array($this, 'qr_code_scripts'));
+        }
 
     }
 
@@ -461,6 +465,32 @@ class MosingpassPlugin
         MOOAuth_Debug::mo_oauth_log('Invalid response received while fetching Id token from the Resource Owner. Id_token : ' . esc_html($id_token));
         echo 'Invalid response received.<br><b>Id_token : </b>' . esc_html($id_token);
         exit;
+    }
+
+    function qr_code_scripts()
+    {
+        $appname = get_option(self::APP_NAME);
+        $state = base64_encode($appname);
+        $nonce = $state;
+
+        $path = plugin_dir_url(__FILE__);
+        wp_enqueue_script( 'singpass_support_script', 'https://stg-id.singpass.gov.sg/static/ndi_embedded_auth.js' );
+        wp_enqueue_script( 'singpass_script', plugin_dir_url( __FILE__ ) . 'js/singpass.js' );
+        wp_localize_script( 'singpass_script', 'singpass_vars', array('state' => $state));
+//        echo '<script src="https://stg-id.singpass.gov.sg/static/ndi_embedded_auth.js"></script>';
+//        echo '<script src="' . $path . 'js/singpass.js"></script>';
+    }
+
+    public static function show_qr_code()
+    {
+        wp_enqueue_style('wp-pointer');
+        wp_enqueue_script('wp-pointer');
+        wp_enqueue_script('utils');
+        ?>
+
+        <body onload="init()">
+        <div id="ndi-qr"></div>
+        </body><?php
     }
 
 

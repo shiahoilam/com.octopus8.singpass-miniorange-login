@@ -26,10 +26,15 @@ class MOOAuth_Widget extends WP_Widget
     function mo_oauth_wplogin_form_button()
     {
         $appslist = get_option('mo_oauth_apps_list');
+
+        $show_qr_code = get_option(MosingpassPlugin::SHOW_QR);
+        if ($show_qr_code) {
+            MosingpassPlugin::show_qr_code();
+        } else {
+        }
         if (is_array($appslist) && sizeof($appslist) > 0) {
             $this->mo_oauth_load_login_script();
             foreach ($appslist as $key => $app) {
-
                 if (isset($app['show_on_login_page']) && $app['show_on_login_page'] === 1) {
 
                     $this->mo_oauth_wplogin_form_style();
@@ -56,6 +61,7 @@ class MOOAuth_Widget extends WP_Widget
                 }
             }
         }
+
     }
 
     function mo_oauth_client_login_button_logo($currentAppId)
