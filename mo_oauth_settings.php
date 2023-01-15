@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: SingPass OAuth Single Sign On - SSO (OAuth Client)
+ * Plugin Name: SingPass
  * Base Plugin: OAuth Single Sign On - SSO (OAuth Client)
  * Base Plugin URI: miniorange-login-with-eve-online-google-facebook
  * Description: This WordPress Single Sign-On plugin allows login into WordPress with your SingPass or other custom OAuth 2.0 / OpenID Connect providers. WordPress OAuth Client plugin works with any Identity provider that conforms to the OAuth 2.0 and OpenID Connect (OIDC) 1.0 standard.

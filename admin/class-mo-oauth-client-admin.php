@@ -28,8 +28,8 @@ class MOOAuth_Client_Admin {
 		$url.='&tab=config';
 		$url2 =  $url.'&tab=licensing';
 		$settings_link = "<a href='$url'>" . 'Configure' . '</a>';
-		$settings_link2 = "<a href='$url2' style=><b>" . 'Upgrade to Premium' . '</b></a>';
-		array_push($actions, $settings_link2);
+//		$settings_link2 = "<a href='$url2' style=><b>" . 'Upgrade to Premium' . '</b></a>';
+//		array_push($actions, $settings_link2);
 		array_push($actions, $settings_link);
 		return array_reverse($actions);
  }
