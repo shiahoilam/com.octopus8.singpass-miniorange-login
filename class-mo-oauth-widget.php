@@ -31,7 +31,6 @@ class MOOAuth_Widget extends WP_Widget
         if ($show_qr_code) {
             MosingpassPlugin::show_qr_code();
         } else {
-        }
         if (is_array($appslist) && sizeof($appslist) > 0) {
             $this->mo_oauth_load_login_script();
             foreach ($appslist as $key => $app) {
@@ -60,6 +59,7 @@ class MOOAuth_Widget extends WP_Widget
 					</div>';
                 }
             }
+        }
         }
 
     }
