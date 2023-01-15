@@ -118,7 +118,6 @@ class MosingpassPluginSettingsPage
             $settings_page,
             $common_section,
             array('theName' => MosingpassPlugin::WRITE_LOG));
-
         register_setting("$slug._settings",
             MosingpassPlugin::WRITE_LOG,
             array('sanitize_callback' => 'sanitize_text_field',
@@ -217,16 +216,56 @@ class MosingpassPluginSettingsPage
         register_setting("$slug._settings", MosingpassPlugin::REDIRECT_URI,
             array('sanitize_callback' => 'sanitize_text_field',
                 'default' => ''));
+/*
+ *     public const SHOW_QR = "mosp_show_qr";
+    public const CREATE_NEW_USER = "mosp_create_new_user";
+    public const ADD_NEW_USER_FORM = "mosp_add_new_user_form";
+    public const AFTER_LOGIN_URL = "mosp_after_login_url";
 
-//        add_settings_field(MosingpassPlugin::JWKS_ENDPOINT,
-//            'JWKS Endpoint',
-//            array($this, 'textHTML'),
-//            $settings_page,
-//            $local_section,
-//            array('theName' => MosingpassPlugin::JWKS_ENDPOINT));
-//        register_setting("$slug._settings", MosingpassPlugin::JWKS_ENDPOINT,
-//            array('sanitize_callback' => 'sanitize_text_field',
-//                'default' => ''));
+ */
+
+        add_settings_field(MosingpassPlugin::SHOW_QR,
+            'Show QR',
+            array($this, 'checkboxHTML'),
+            $settings_page,
+            $local_section,
+            array('theName' => MosingpassPlugin::SHOW_QR));
+        register_setting("$slug._settings",
+            MosingpassPlugin::SHOW_QR,
+            array('sanitize_callback' => 'sanitize_text_field',
+                'default' => '0'));
+
+
+        add_settings_field(MosingpassPlugin::CREATE_NEW_USER,
+            'Create New User',
+            array($this, 'checkboxHTML'),
+            $settings_page,
+            $local_section,
+            array('theName' => MosingpassPlugin::CREATE_NEW_USER));
+        register_setting("$slug._settings",
+            MosingpassPlugin::CREATE_NEW_USER,
+            array('sanitize_callback' => 'sanitize_text_field',
+                'default' => '1'));
+
+        add_settings_field(MosingpassPlugin::ADD_NEW_USER_FORM,
+            'Add New User Form',
+            array($this, 'textHTML'),
+            $settings_page,
+            $local_section,
+            array('theName' => MosingpassPlugin::ADD_NEW_USER_FORM));
+        register_setting("$slug._settings", MosingpassPlugin::ADD_NEW_USER_FORM,
+            array('sanitize_callback' => 'sanitize_text_field',
+                'default' => ''));
+
+        add_settings_field(MosingpassPlugin::AFTER_LOGIN_URL,
+            'Page To Load After Login',
+            array($this, 'textHTML'),
+            $settings_page,
+            $local_section,
+            array('theName' => MosingpassPlugin::AFTER_LOGIN_URL));
+        register_setting("$slug._settings", MosingpassPlugin::AFTER_LOGIN_URL,
+            array('sanitize_callback' => 'sanitize_text_field',
+                'default' => ''));
 
         add_settings_field(MosingpassPlugin::PUBLIC_JWKS,
             'Public JWKS',

@@ -39,6 +39,10 @@ class MosingpassPlugin
     public const SINGPASS_OPENID_ENDPOINT = "mosp_singpass_openid_endpoint";
     public const SINGPASS_JWKS_ENDPOINT = "mosp_singpass_jwk_endpoint";
     public const APP_NAME = "mosp_app_name";
+    public const SHOW_QR = "mosp_show_qr";
+    public const CREATE_NEW_USER = "mosp_create_new_user";
+    public const ADD_NEW_USER_FORM = "mosp_add_new_user_form";
+    public const AFTER_LOGIN_URL = "mosp_after_login_url";
     public const PUBLIC_JWKS = "mosp_public_jwks";
     public const PRIVATE_JWKS = "mosp_private_jwks";
     public const PRIVATE_SIG_KEY = "mosp_private_sig_key";
