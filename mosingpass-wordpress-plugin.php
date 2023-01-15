@@ -471,12 +471,14 @@ class MosingpassPlugin
     {
         $appname = get_option(self::APP_NAME);
         $state = base64_encode($appname);
-        $nonce = $state;
-
-        $path = plugin_dir_url(__FILE__);
-        wp_enqueue_script( 'singpass_support_script', 'https://stg-id.singpass.gov.sg/static/ndi_embedded_auth.js' );
-        wp_enqueue_script( 'singpass_script', plugin_dir_url( __FILE__ ) . 'js/singpass.js' );
-        wp_localize_script( 'singpass_script', 'singpass_vars', array('state' => $state));
+        $appslist = maybe_unserialize(get_option('mo_oauth_apps_list'));
+        $clientId = $appslist[$appname]['clientid'];
+        wp_enqueue_script('singpass_support_script', 'https://stg-id.singpass.gov.sg/static/ndi_embedded_auth.js');
+        wp_enqueue_script('singpass_script', plugin_dir_url(__FILE__) . 'js/singpass.js');
+        wp_localize_script('singpass_script', 'singpass_vars', array(
+            'state' => $state,
+            'redirectUri' => get_option(self::REDIRECT_URI),
+            'clientId' => $clientId));
 //        echo '<script src="https://stg-id.singpass.gov.sg/static/ndi_embedded_auth.js"></script>';
 //        echo '<script src="' . $path . 'js/singpass.js"></script>';
     }
