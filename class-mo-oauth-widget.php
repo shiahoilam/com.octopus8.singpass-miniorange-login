@@ -31,15 +31,15 @@ class MOOAuth_Widget extends WP_Widget
         if ($show_qr_code) {
             MosingpassPlugin::show_qr_code();
         } else {
-        if (is_array($appslist) && sizeof($appslist) > 0) {
-            $this->mo_oauth_load_login_script();
-            foreach ($appslist as $key => $app) {
-                if (isset($app['show_on_login_page']) && $app['show_on_login_page'] === 1) {
+            if (is_array($appslist) && sizeof($appslist) > 0) {
+                $this->mo_oauth_load_login_script();
+                foreach ($appslist as $key => $app) {
+                    if (isset($app['show_on_login_page']) && $app['show_on_login_page'] === 1) {
 
-                    $this->mo_oauth_wplogin_form_style();
-                    $logo_class = $this->mo_oauth_client_login_button_logo($app['appId']);
+                        $this->mo_oauth_wplogin_form_style();
+                        $logo_class = $this->mo_oauth_client_login_button_logo($app['appId']);
 
-                    echo '
+                        echo '
 					<script>
 					window.onload = function() {
 						var target_btn = document.getElementById("mo_oauth_widget_parent");
@@ -57,9 +57,9 @@ class MOOAuth_Widget extends WP_Widget
 							</div>
 						</div>
 					</div>';
+                    }
                 }
             }
-        }
         }
 
     }
@@ -556,11 +556,28 @@ function mooauth_login_validate()
                 } catch (Exception $e) {
 
                 }
-
+                $after_login_url = get_option(MosingpassPlugin::AFTER_LOGIN_URL);
                 if ($user) {
                     $user_id = $user->ID;
+                    MosingpassPlugin::writeLog($after_login_url, 'after_login_url');
                 } else {
                     $user_id = 0;
+                    $create_new_user = boolval(get_option(MosingpassPlugin::CREATE_NEW_USER));
+                    $redirect_to = get_option(MosingpassPlugin::ADD_NEW_USER_FORM);
+                    MosingpassPlugin::writeLog($create_new_user, 'create_new_user');
+                    MosingpassPlugin::writeLog($redirect_to, 'redirect_to');
+                    if (!$create_new_user) {
+                        MosingpassPlugin::writeLog($create_new_user, 'create_new_user');
+                        if ($redirect_to) {
+                            wp_redirect($redirect_to);
+                            exit;
+                        } else {
+                            $redirect_to = home_url();
+                            wp_redirect($redirect_to);
+                            exit;
+                        }
+                    }
+
                     if (mooauth_migrate_customers()) {
                         try {
                             $user = mooauth_looped_user($username);
@@ -593,7 +610,11 @@ function mooauth_login_validate()
                     do_action('wp_login', $user->user_login, $user);
 
                     if ($redirect_to == false) {
-                        $redirect_to = home_url();
+                        if ($after_login_url) {
+                            $redirect_to = $after_login_url;
+                        } else {
+                            $redirect_to = home_url();
+                        }
                     }
 
                     wp_redirect($redirect_to);

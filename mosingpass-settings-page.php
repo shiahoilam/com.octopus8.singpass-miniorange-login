@@ -237,7 +237,7 @@ class MosingpassPluginSettingsPage
 
 
         add_settings_field(MosingpassPlugin::CREATE_NEW_USER,
-            'Create New User',
+            "Automatically Create New User",
             array($this, 'checkboxHTML'),
             $settings_page,
             $local_section,
@@ -245,10 +245,10 @@ class MosingpassPluginSettingsPage
         register_setting("$slug._settings",
             MosingpassPlugin::CREATE_NEW_USER,
             array('sanitize_callback' => 'sanitize_text_field',
-                'default' => '1'));
+                'default' => '0'));
 
         add_settings_field(MosingpassPlugin::ADD_NEW_USER_FORM,
-            'Add New User Form',
+            'New User Register URL',
             array($this, 'textHTML'),
             $settings_page,
             $local_section,
