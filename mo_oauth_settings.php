@@ -4,7 +4,7 @@
  * Base Plugin: OAuth Single Sign On - SSO (OAuth Client) by miniOrange
  * Base Plugin URI: miniorange-login-with-eve-online-google-facebook
  * Description: This WordPress Single Sign-On plugin allows login into WordPress with your SingPass or other custom OAuth 2.0 / OpenID Connect providers. WordPress OAuth Client plugin works with any Identity provider that conforms to the OAuth 2.0 and OpenID Connect (OIDC) 1.0 standard.
- * Version: 1.00.1
+ * Version: 1.00.2
  * Author: Khindol Madraimov
  * Author Email: khindol.madraimov@gmail.com
  * Base Author URI: https://www.miniorange.com

@@ -38,7 +38,11 @@ class MOOAuth_Widget extends WP_Widget
 
                         $this->mo_oauth_wplogin_form_style();
                         $logo_class = $this->mo_oauth_client_login_button_logo($app['appId']);
-
+                        $btn_text = '<div class=" mo_oauth_login_button_text "><i class="' . esc_attr($logo_class) . ' mo_oauth_login_button_icon"></i>Login with ' . esc_attr(ucwords($key)) . '</div>';
+                        if($key === get_option(MosingpassPlugin::APP_NAME))
+                        {
+                            $btn_text = '<div class="singpass-header-btn">Log in with <img src="' . plugin_dir_url( __FILE__ ) . '/images/singpass-login-icon.svg" alt="SingPass"></div>';
+                        }
                         echo '
 					<script>
 					window.onload = function() {
@@ -53,10 +57,31 @@ class MOOAuth_Widget extends WP_Widget
 						</div>
 						<div id="mo_oauth_login_button_field" style="height:40px;margin-top:20px;">
 							<div id="mo_oauth_login_button">
-								<a class="mo_oauth_button_div button-primary " style="text-decoration:none" href="javascript:void(0)" onClick="moOAuthLoginNew(\'' . esc_attr($key) . '\')"><div class=" mo_oauth_login_button_text "><i class="' . esc_attr($logo_class) . ' mo_oauth_login_button_icon"></i>Login with ' . esc_attr(ucwords($key)) . '</div></a>	
+							<a class=" mo_oauth_button_div" style="text-decoration:none" href="javascript:void(0)" onClick="moOAuthLoginNew(\'' . esc_attr($key) . '\')">
+							' . $btn_text  .
+                            '</a></div>
+						</div>
+					</div>';
+/*
+                        echo '
+					<script>
+					window.onload = function() {
+						var target_btn = document.getElementById("mo_oauth_widget_parent");
+						var before_element = document.querySelector(" #wp-submit ");
+						before_element.after(target_btn);
+					};
+					</script>
+					<div id="mo_oauth_widget_parent" >
+						<div class="mo_oauth_or_division" style="text-align:center">
+							<br><br><b>OR</b>
+						</div>
+						<div id="mo_oauth_login_button_fie		<divyle="height:40px;margin-top:20px;">
+							<div id="mo_oauth_login_button">
+								<a class="mo_oauth_button_div button-primary " style="text-decoration:none" href="javascript:void(0)" onClick="moOAuthLoginNew(\'' . esc_attr($key) . '\')"><div class=" mo_oauth_login_button_text "><i class="' . esc_attr($logo_class) . ' mo_oauth_login_button_icon"></i>Login with ' . esc_attr(ucwords($key)) . '</div></a>
 							</div>
 						</div>
 					</div>';
+*/
                     }
                 }
             }
@@ -143,8 +168,10 @@ class MOOAuth_Widget extends WP_Widget
                 if (is_array($appslist)) {
                     foreach ($appslist as $key => $app) {
                         $logo_class = $this->mo_oauth_client_login_button_logo($app['appId']);
+                        echo '<a style="text-decoration:none" 
+                        href="javascript:void(0)" 
+                        onClick="moOAuthLoginNew(\'' . esc_attr($key) . '\');"><div class="mo_oauth_login_button_widget"><i class="' . esc_attr($logo_class) . ' mo_oauth_login_button_icon_widget"></i><h3 class="mo_oauth_login_button_text_widget">Login with ' . esc_attr(ucwords($key)) . '</h3></div></a>';
 
-                        echo '<a style="text-decoration:none" href="javascript:void(0)" onClick="moOAuthLoginNew(\'' . esc_attr($key) . '\');"><div class="mo_oauth_login_button_widget"><i class="' . esc_attr($logo_class) . ' mo_oauth_login_button_icon_widget"></i><h3 class="mo_oauth_login_button_text_widget">Login with ' . esc_attr(ucwords($key)) . '</h3></div></a>';
                     }
                 }
 

@@ -80,3 +80,29 @@
         margin-right: 2%;
     }  
 }
+
+.singpass-header-btn:hover {
+    outline: none;
+    border: none;
+    background: #87070E
+}
+
+.singpass-header-btn {
+    background: #CF0B15;
+    border-radius: 4px;
+    font-family: Poppins, arial, helvetica, sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    line-height: 22px;
+    color: #fff;
+    text-align: center;
+    letter-spacing: .02em;
+    outline: none;
+    border: none;
+    padding: 13px 16px;
+}
+
+.singpass-header-btn img {
+    vertical-align: middle;
+    border-style: none;
+}
