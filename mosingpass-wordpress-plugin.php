@@ -1,14 +1,17 @@
 <?php
+
 require_once dirname(__FILE__) . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
 
 // If this file is called directly, abort.
 
 use Jose\Component\Core\{
     AlgorithmManager,
-    JWK};
+    JWK
+};
 use Jose\Component\Encryption\{
     Algorithm\KeyEncryption\ECDHESA256KW,
     Algorithm\ContentEncryption\A256CBCHS512,
+    Algorithm\ContentEncryption\A256GCM,
     Compression\CompressionMethodManager,
     Compression\Deflate,
     JWELoader,
@@ -20,7 +23,11 @@ use Jose\Component\Encryption\{
 use Jose\Component\Signature\{
     Algorithm\ES256,
     JWSBuilder,
-    Serializer\CompactSerializer as SignatureCompactSerializer};
+    JWSVerifier,
+    Serializer\CompactSerializer as SignatureCompactSerializer,
+    Serializer\JWSSerializerManager,
+    JWSLoader
+};
 
 if (!defined('ABSPATH')) {
     die;
@@ -36,6 +43,7 @@ class MosingpassPlugin
     public const REDIRECT_URI = "mosp_redirect_uri";
     public const SINGPASS_AUTH_ENDPOINT = "mosp_singpass_auth_endpoint";
     public const SINGPASS_TOKEN_ENDPOINT = "mosp_singpass_token_endpoint";
+    public const SINGPASS_USERINFO_ENDPOINT = "mosp_singpass_userinfo_endpoint";
     public const SINGPASS_OPENID_ENDPOINT = "mosp_singpass_openid_endpoint";
     public const SINGPASS_JWKS_ENDPOINT = "mosp_singpass_jwk_endpoint";
     public const APP_NAME = "mosp_app_name";
@@ -127,7 +135,7 @@ class MosingpassPlugin
 
     function singpass_jwks()
     {
-        echo get_option(self::PUBLIC_JWKS);
+        return json_decode(get_option(self::PUBLIC_JWKS), true); // Decodes JSON for WordPress response
     }
 
     function oidc_signin_callback($params)
@@ -163,12 +171,12 @@ class MosingpassPlugin
                 $private_enc_jwk = json_decode(json_encode($private_jwk), true);
             }
         }
-//        self::writeLog($sig_kid, 'sig_kid');
-//        self::writeLog($enc_kid, 'enc_kid');
-//        self::writeLog($public_sig_jwk, 'sig_kid');
-//        self::writeLog($public_enc_jwk, 'enc_kid');
-//        self::writeLog($private_sig_jwk, 'sig_kid');
-//        self::writeLog($private_enc_jwk, 'enc_kid');
+        self::writeLog($sig_kid, 'sig_kid');
+        self::writeLog($enc_kid, 'enc_kid');
+        self::writeLog($public_sig_jwk, 'sig_kid');
+        self::writeLog($public_enc_jwk, 'enc_kid');
+        self::writeLog($private_sig_jwk, 'sig_kid');
+        self::writeLog($private_enc_jwk, 'enc_kid');
 
         return array($sig_kid, $public_sig_jwk, $enc_kid, $public_enc_jwk, $private_sig_jwk, $private_enc_jwk);
     }
@@ -180,7 +188,7 @@ class MosingpassPlugin
         $log_message = (is_array($log) || is_object($log) ? print_r($log, true) : $log) . "\r\n";
         $log_time = '[' . date("F j, Y, g:i a e O") . ']' . "\r\n";
         $message = $log_time . $log_header . $log_message;
-//        if (true === WP_DEBUG && true === WP_DEBUG_LOG) {
+        //        if (true === WP_DEBUG && true === WP_DEBUG_LOG) {
         $plugin_dir_path = plugin_dir_path(__FILE__);
         $pluginlog = $plugin_dir_path . 'debug.log';
         error_log($message, 3, $pluginlog);
@@ -211,7 +219,8 @@ class MosingpassPlugin
             "&redirect_uri=" . $redirect_uri .
             "&response_type=code" .
             "&state=" . $state .
-            "&nonce=" . $nonce;;
+            "&nonce=" . $nonce;
+        ;
 
         if (session_id() == '' || !isset($_SESSION))
             session_start();
@@ -221,8 +230,89 @@ class MosingpassPlugin
         self::writeLog($authorizationUrl, 'Authorization Request');
         header('Location: ' . $authorizationUrl);
     }
-//    }
 
+    public static function isJWE($token)
+    {
+        // Split the token by '.' and count the segments
+        $parts = explode('.', $token);
+        self::writeLog($parts, "Split Parts");
+        return count($parts) === 5;
+    }
+
+    /**
+     * Retrieve and cache JWKS with automatic cache invalidation and re-fetch on verification failure.
+     * @return array
+     */
+    protected static function fetchJWKSWithCache(): array
+    {
+        $jwks_cache_key = 'mosingpass_jwks_cache';
+        $cached_jwks = get_transient($jwks_cache_key);
+
+        if ($cached_jwks) {
+            // If JWKS is cached, return it directly
+            self::writeLog("Retrieved JWKS from cache");
+            return $cached_jwks;
+        }
+
+        // Fetch the JWKS from the endpoint if not cached
+        $singpass_jwks_url = get_option(self::SINGPASS_JWKS_ENDPOINT);
+        $response = wp_remote_get($singpass_jwks_url);
+
+        if (is_wp_error($response)) {
+            self::writeLog('Error fetching JWKS: ' . $response->get_error_message());
+            return [];
+        }
+
+        $jwks_data = json_decode(wp_remote_retrieve_body($response), true);
+
+        if (!isset($jwks_data['keys'])) {
+            self::writeLog('Invalid JWKS data received.');
+            return [];
+        }
+
+        // Cache JWKS for 1 hour (3600 seconds)
+        set_transient($jwks_cache_key, $jwks_data['keys'], HOUR_IN_SECONDS);
+
+        self::writeLog('Fetched JWKS and cached it.');
+        return $jwks_data['keys'];
+    }
+
+    /**
+     * Retrieve the JWK for a given kid from cached or refreshed JWKS.
+     * @param string $kid
+     * @return JWK|null
+     */
+    public static function getKeyForKid($kid): JWK|null
+    {
+        $jwks_keys = self::fetchJWKSWithCache();
+
+        // Find the correct key with the matching kid
+        foreach ($jwks_keys as $key) {
+            if ($key['kid'] === $kid) {
+                return new JWK($key);
+            }
+        }
+
+        // If key not found, invalidate cache, re-fetch JWKS, and try again
+        delete_transient('mosingpass_jwks_cache');
+        self::writeLog("Key not found, cache deleted");
+        $jwks_keys = self::fetchJWKSWithCache();
+
+        foreach ($jwks_keys as $key) {
+            if ($key['kid'] === $kid) {
+                return new JWK($key);
+            }
+        }
+
+        self::writeLog('Key with kid ' . $kid . ' not found after JWKS refresh.');
+        return null;
+    }
+
+    public static function base_url($url)
+    {
+        $result = parse_url($url);
+        return $result['scheme'] . "://" . $result['host'];
+    }
 
     /**
      * @param bool $currentapp
@@ -237,22 +327,26 @@ class MosingpassPlugin
             $state = $_GET['state'];
             self::writeLog($code, 'code');
             self::writeLog($state, 'state');
-//            self::writeLog($currentapp, 'currentapp');
+            //            self::writeLog($currentapp, 'currentapp');
 
             $tokenendpoint = $currentapp['accesstokenurl'];
             $singpass_client = $currentapp['clientid'];
+            $singpass_uri = self::base_url(get_option(self::SINGPASS_OPENID_ENDPOINT));
+
             $redirect_uri = get_option(self::REDIRECT_URI);
             self::writeLog($redirect_uri, 'redirect_uri');
 
-            list($sig_kid,
+            list(
+                $sig_kid,
                 $public_sig_jwk,
                 $enc_kid,
                 $public_enc_jwk,
                 $private_sig_jwk,
-                $private_enc_jwk) = self::getJWKS();
+                $private_enc_jwk
+            ) = self::getJWKS();
 
             $sig_private_jwk = new JWK($private_sig_jwk);
-            self::writeLog($sig_private_jwk, 'sig_private_jwk');
+            self::writeLog($sig_private_jwk, log_header: 'sig_private_jwk');
 
             $algorithmManager = new AlgorithmManager([
                 new ES256(),
@@ -262,12 +356,13 @@ class MosingpassPlugin
 
             $now = time();
             $payload = json_encode([
-                'iss' => $singpass_client,
+                "iss" => $singpass_client,
                 "sub" => $singpass_client,
-                'aud' => "https://stg-id.singpass.gov.sg",
+                'aud' => $singpass_uri,
                 'iat' => $now,
-                'exp' => $now + 60,
-            ]);
+                'exp' => $now + 90,
+                'code' => $code
+            ], JSON_UNESCAPED_SLASHES);
 
             try {
                 $jws = $jwsBuilder
@@ -280,12 +375,14 @@ class MosingpassPlugin
                     ])// We add a signature with a simple protected header
                     ->build();
             } catch (Exception $e) {
-
+                self::writeLog($e->getMessage(), 'Payload');
+                print ($e->getMessage());
             }
             self::writeLog($payload, 'Payload');
             self::writeLog($jws, 'jws');
             $serializer = new SignatureCompactSerializer(); // The serializer
             $client_assertion = $serializer->serialize($jws, 0);
+            error_log("sig_kid value: " . print_r($sig_kid, true));
             self::writeLog($client_assertion, 'ClientAssertion');
 
             $body = array(
@@ -369,42 +466,35 @@ class MosingpassPlugin
 
     public static function getResourceOwnerFromIdToken($token)
     {
-        //credentials part
-        list($sig_kid,
+        list(
+            $sig_kid,
             $public_sig_jwk,
             $enc_kid,
             $public_enc_jwk,
             $private_sig_jwk,
-            $private_enc_jwk) = self::getJWKS();
+            $private_enc_jwk
+        ) = self::getJWKS();
+
         $encryption_serializer = new EncryptionCompactSerializer(); // The serializer
-        $encryptionSerializerManager = new JWESerializerManager([
-            $encryption_serializer,
-        ]);
-        $parser_url = "http://localhost:5000/parser";
-        $body = array(
-            'key' => $private_enc_jwk,
-            'jwt' => $token
-        );
-        $headers = [
-            'Accept: application/json',
-            'charset: UTF-8',
-            'Content-Type: application/json',
-        ];
+        $encryptionSerializerManager = new JWESerializerManager([$encryption_serializer,]);
+        $signature_serializer = new SignatureCompactSerializer();
+        $signatureSerializerManager = new JWSSerializerManager([$signature_serializer,]);
 
-        try {
-            $jwe = $encryption_serializer->unserialize($token);
-//            self::writeLog($jwe, 'JWE');
-        } catch (Exception $e) {
-            print('nonserializable with deserialized_JWE');
+        if (self::isJWE($token)) {
+            try {
+                $jwe = $encryption_serializer->unserialize($token);
+                self::writeLog($jwe, 'JWE');
+            } catch (Exception $e) {
+                self::writeLog($e->getMessage(), 'nonserializable with deserialized_JWE');
+            }
         }
-
 
         $keyEncryptionAlgorithmManager = new AlgorithmManager([
             new ECDHESA256KW(),
         ]);
 
         $contentEncryptionAlgorithmManager = new AlgorithmManager([
-            new A256CBCHS512(),
+            new A256GCM(),
         ]);
 
         $compressionMethodManager = new CompressionMethodManager([
@@ -417,33 +507,97 @@ class MosingpassPlugin
             $compressionMethodManager
         );
 
-        $public_enc_JWK = new JWK($public_enc_jwk);
         $private_enc_JWK = new JWK($private_enc_jwk);
 
-        if ($jweDecrypter->decryptUsingKey($jwe, $private_enc_JWK, 0)) {
-            $success_key = $private_enc_JWK;
+        if ($jwe) {
+            if ($jweDecrypter->decryptUsingKey($jwe, $private_enc_JWK, 0)) {
+                $success_key = $private_enc_JWK;
+            } else {
+                self::writeLog('unsuccess', 'jweDecrypter->$private_enc_JWK');
+            }
+
+            $jweLoader = new JWELoader(
+                $encryptionSerializerManager,
+                $jweDecrypter,
+                null
+            );
+            $unencrypted_payload = "";
+
+            try {
+                $jw_decrypted_response = $jweLoader->loadAndDecryptWithKey(
+                    $token,
+                    $success_key,
+                    $recipient
+                );
+                $unencrypted_payload = $jw_decrypted_response->getPayload();
+                self::writeLog($unencrypted_payload, 'success_key');
+            } catch (Exception $e) {
+                print ('nonserializable with private_enc_JWK');
+            }
+            // $headerbody = self::getHeaderPayloadFromIdToken($unencrypted_payload);
+            // return self::getNricUen($headerbody);
         } else {
-            self::writeLog('unsuccess', 'jweDecrypter->$private_enc_JWK');
+            $unencrypted_payload = $token;
         }
 
-        $jweLoader = new JWELoader(
-            $encryptionSerializerManager,
-            $jweDecrypter,
-            null
+        if ($unencrypted_payload) {
+            try {
+                $jws = $signatureSerializerManager->unserialize($unencrypted_payload);
+                self::writeLog($jws, 'JWS');
+            } catch (Exception $e) {
+                self::writeLog($e->getMessage(), 'nonserializable with deserialized_JWS');
+            }
+        }
+
+        $verifySignatureAlgorithmManager = new AlgorithmManager([
+            new ES256(),
+        ]);
+
+        $jwsVerifier = new JWSVerifier(
+            $verifySignatureAlgorithmManager,
         );
-        $unencrypted_payload = "";
 
-        try {
-            $jw_decrypted_response = $jweLoader->loadAndDecryptWithKey($token,
-                $success_key,
-                $recipient);
-            $unencrypted_payload = $jw_decrypted_response->getPayload();
-//            self::writeLog($unencrypted_payload, 'success_key');
-        } catch (Exception $e) {
-            print('nonserializable with public_enc_JWK');
+        $public_sig_JWK = new JWK($public_sig_jwk);
+
+        // Extract `kid` from the token header
+        $jwsHeader = json_decode(base64_decode(explode('.', $unencrypted_payload)[0]), true);
+        $jws_kid = $jwsHeader['kid'];
+        self::writeLog($jws_kid, 'JWS Header kid');
+
+        // Retrieve Singpass's key using `kid`
+        $singpass_key = self::getKeyForKid($jws_kid);
+        self::writeLog($singpass_key, "Found kid");
+
+        if ($jws) {
+            if ($jwsVerifier->verifyWithKey($jws, $singpass_key, 0)) {
+                $success_key = $singpass_key;
+            } else {
+                self::writeLog('unsuccess', 'jwsVerifier->$public_sig_JWK');
+            }
+
+            $jwsLoader = new JWSLoader(
+                $signatureSerializerManager,
+                $jwsVerifier,
+                null,
+            );
+
+            self::writeLog($success_key);
+            try {
+                $jw_verified_response = $jwsLoader->loadAndVerifyWithKey(
+                    $unencrypted_payload,
+                    $success_key,
+                    $signature,
+                );
+                $verified_payload = $jw_verified_response->getPayload();
+                self::writeLog($verified_payload, 'success_key');
+                // print("Id token: Successfully verified JWS: " . $verified_payload);
+            } catch (Exception $e) {
+                self::writeLog($e->getMessage());
+                print ('nonserializable with public_sig_JWK');
+            }
+            // $headerbody = self::getHeaderPayloadFromIdToken($verified_payload);
+            // return self::getNricUen($headerbody);
         }
-        $headerbody = self::getHeaderPayloadFromIdToken($unencrypted_payload);
-        return self::getNricUen($headerbody);
     }
 
     public static function getHeaderPayloadFromIdToken($id_token)
@@ -467,6 +621,179 @@ class MosingpassPlugin
         exit;
     }
 
+    public static function getUserInfo($accessToken)
+    {
+        $userinfo_endpoint = get_option(self::SINGPASS_USERINFO_ENDPOINT);
+
+        $headers = [
+            'Authorization' => 'Bearer ' . $accessToken,
+            'Accept' => 'application/json',
+        ];
+
+        try {
+            $response = wp_remote_get($userinfo_endpoint, [
+                'method' => 'GET',
+                'headers' => $headers,
+                'timeout' => 45,
+                'redirection' => 5,
+                'httpversion' => '1.0',
+                'blocking' => true,
+                'sslverify' => false,
+            ]);
+
+            if (is_wp_error($response)) {
+                self::writeLog('Userinfo Response Error: ' . $response->get_error_message());
+                return new WP_Error('userinfo_error', 'Error fetching userinfo');
+            }
+            $jweToken = wp_remote_retrieve_body($response);
+
+        } catch (Exception $e) {
+            self::writeLog($e->getMessage(), 'Exception in Userinfo Endpoint');
+            return new WP_Error('userinfo_exception', $e->getMessage());
+        }
+
+        list(
+            $sig_kid,
+            $public_sig_jwk,
+            $enc_kid,
+            $public_enc_jwk,
+            $private_sig_jwk,
+            $private_enc_jwk
+        ) = self::getJWKS();
+
+        $encryption_serializer = new EncryptionCompactSerializer(); // The serializer
+        $encryptionSerializerManager = new JWESerializerManager([$encryption_serializer,]);
+        $signature_serializer = new SignatureCompactSerializer();
+        $signatureSerializerManager = new JWSSerializerManager([$signature_serializer,]);
+
+        try {
+            $jwe = $encryption_serializer->unserialize($jweToken);
+            self::writeLog($jwe, 'JWE');
+        } catch (Exception $e) {
+            self::writeLog($e->getMessage(), 'nonserializable with deserialized_JWE');
+        }
+
+        $keyEncryptionAlgorithmManager = new AlgorithmManager([
+            new ECDHESA256KW(),
+        ]);
+
+        $contentEncryptionAlgorithmManager = new AlgorithmManager([
+            new A256GCM(),
+        ]);
+
+        $compressionMethodManager = new CompressionMethodManager([
+            new Deflate(),
+        ]);
+
+        $jweDecrypter = new JWEDecrypter(
+            $keyEncryptionAlgorithmManager,
+            $contentEncryptionAlgorithmManager,
+            $compressionMethodManager
+        );
+
+        $private_enc_JWK = new JWK($private_enc_jwk);
+
+        if ($jwe) {
+            if ($jweDecrypter->decryptUsingKey($jwe, $private_enc_JWK, 0)) {
+                $success_key = $private_enc_JWK;
+            } else {
+                self::writeLog('unsuccess', 'jweDecrypter->$private_enc_JWK');
+            }
+
+            $jweLoader = new JWELoader(
+                $encryptionSerializerManager,
+                $jweDecrypter,
+                null
+            );
+            $unencrypted_payload = "";
+
+            try {
+                $jw_decrypted_response = $jweLoader->loadAndDecryptWithKey(
+                    $jweToken,
+                    $success_key,
+                    $recipient
+                );
+                $unencrypted_payload = $jw_decrypted_response->getPayload();
+                self::writeLog($unencrypted_payload, 'success_key');
+            } catch (Exception $e) {
+                print ('nonserializable with private_enc_JWK');
+            }
+            // $headerbody = self::getHeaderPayloadFromIdToken($unencrypted_payload);
+            // return self::getNricUen($headerbody);
+        }
+
+        if ($unencrypted_payload) {
+            try {
+                $jws = $signatureSerializerManager->unserialize($unencrypted_payload);
+                self::writeLog($jws, 'JWS');
+            } catch (Exception $e) {
+                self::writeLog($e->getMessage(), 'nonserializable with deserialized_JWS');
+            }
+        }
+
+        $verifySignatureAlgorithmManager = new AlgorithmManager([
+            new ES256(),
+        ]);
+
+        $jwsVerifier = new JWSVerifier(
+            $verifySignatureAlgorithmManager,
+        );
+
+        $public_sig_JWK = new JWK($public_sig_jwk);
+
+        // Extract `kid` from the token header
+        $jwsHeader = json_decode(base64_decode(explode('.', $unencrypted_payload)[0]), true);
+        $jws_kid = $jwsHeader['kid'];
+        self::writeLog($jws_kid, 'JWS Header kid');
+
+        // Retrieve Singpass's key using `kid`
+        $singpass_key = self::getKeyForKid($jws_kid);
+        self::writeLog($singpass_key, "Found kid");
+
+        if ($jws) {
+            if ($jwsVerifier->verifyWithKey($jws, $singpass_key, 0)) {
+                $success_key = $singpass_key;
+            } else {
+                self::writeLog('unsuccess', 'jwsVerifier->$public_sig_JWK');
+            }
+
+            $jwsLoader = new JWSLoader(
+                $signatureSerializerManager,
+                $jwsVerifier,
+                null,
+            );
+
+            self::writeLog($success_key);
+            try {
+                $jw_verified_response = $jwsLoader->loadAndVerifyWithKey(
+                    $unencrypted_payload,
+                    $success_key,
+                    $signature,
+                );
+                $verified_payload = $jw_verified_response->getPayload();
+                self::writeLog($verified_payload, 'success_key');
+                // print("\nAccess token: Successfully decrypted JWE & verified JWS: " . $verified_payload);
+
+                if ($verified_payload) {
+                    // Store the user information temporarily
+                    // set_transient('singpass_user_data', $verified_payload, 300); // Store for 5 minutes
+
+                    //alternative way rather than set_transient
+                    set_userinfo_data($verified_payload);
+
+                    // Redirect to the NinjaForm page
+                    wp_redirect(site_url('/singpass-testing-page?singpass=true')); // Replace with your form URL
+                    exit;
+                }
+            } catch (Exception $e) {
+                self::writeLog($e->getMessage());
+                print ('nonserializable with public_sig_JWK');
+            }
+            // $headerbody = self::getHeaderPayloadFromIdToken($verified_payload);
+            // return self::getNricUen($headerbody);
+        }
+    }
+
     function qr_code_scripts()
     {
         $appname = get_option(self::APP_NAME);
@@ -478,8 +805,9 @@ class MosingpassPlugin
         wp_localize_script('singpass_script', 'singpass_vars', array(
             'state' => $state,
             'redirectUri' => get_option(self::REDIRECT_URI),
-            'clientId' => $clientId));
-//        echo '<script src="https://stg-id.singpass.gov.sg/static/ndi_embedded_auth.js"></script>';
+            'clientId' => $clientId
+        ));
+        //        echo '<script src="https://stg-id.singpass.gov.sg/static/ndi_embedded_auth.js"></script>';
 //        echo '<script src="' . $path . 'js/singpass.js"></script>';
     }
 
@@ -491,8 +819,9 @@ class MosingpassPlugin
         ?>
 
         <body onload="init()">
-        <div id="ndi-qr"></div>
-        </body><?php
+            <div id="ndi-qr"></div>
+        </body>
+        <?php
     }
 
 

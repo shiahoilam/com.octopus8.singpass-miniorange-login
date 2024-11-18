@@ -244,9 +244,9 @@ function mooauth_login_validate()
         }
 
         if (isset($_REQUEST['test']))
-            setcookie("mo_oauth_test", true, null, null, null, true, true);
+           setcookie("mo_oauth_test", true, 0, '/', '', true, true);
         else
-            setcookie("mo_oauth_test", false, null, null, null, true, true);
+            setcookie("mo_oauth_test", false, 0, '/', '', true, true);
 
         if ($appslist == false) {
             MOOAuth_Debug::mo_oauth_log('ERROR : Looks like you have not configured OAuth provider, please try to configure OAuth provider first');
@@ -527,7 +527,7 @@ function mooauth_login_validate()
                     if ($currentappname === $singpassappname) {
                         try {
                             if (class_exists('MosingpassPlugin')) {
-                                $idToken = isset($tokenResponse["id_token"]) ? $tokenResponse["id_token"] : $tokenResponse["access_token"];
+                                $idToken = isset($tokenResponse["id_token"]) ? $tokenResponse["id_token"] : null;
                                 if (!$idToken) {
                                     MOOAuth_Debug::mo_oauth_log('Token Response Recieved => ERROR : Invalid token received.');
                                     exit('Invalid token received.');
@@ -538,6 +538,16 @@ function mooauth_login_validate()
                                     MOOAuth_Debug::mo_oauth_log('Resource Owner Response => ' . json_encode($resourceOwner));
                                 }
 
+                                $accessToken = isset($tokenResponse["access_token"]) ? $tokenResponse["access_token"] : null;
+                                if(!$accessToken) {
+                                    MOOAuth_Debug::mo_oauth_log('Token Response Recieved => ERROR : Invalid token received.');
+                                    exit('Invalid token received.');
+                                } else {
+                                    MOOAuth_Debug::mo_oauth_log('Access Token => ');
+                                    MOOAuth_Debug::mo_oauth_log($accessToken);
+                                    $userInfo = MosingpassPlugin::getUserInfo($accessToken);
+                                    MOOAuth_Debug::mo_oauth_log('User Info Response => ' . json_encode($userInfo));
+                                }
                             }
                         } catch (Exception $e) {
 

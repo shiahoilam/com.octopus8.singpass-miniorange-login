@@ -160,6 +160,16 @@ class MosingpassPluginSettingsPage
             array('sanitize_callback' => 'sanitize_text_field',
                 'default' => ''));
 
+        add_settings_field(MosingpassPlugin::SINGPASS_USERINFO_ENDPOINT,
+            'SingPass Userinfo Endpoint',
+            array($this, 'textHTML'),
+            $settings_page,
+            $singpass_section,
+            array('theName' => MosingpassPlugin::SINGPASS_USERINFO_ENDPOINT));
+        register_setting("$slug._settings", MosingpassPlugin::SINGPASS_USERINFO_ENDPOINT,
+        array('sanitize_callback' => 'sanitize_text_field',
+            'default' => ''));
+    
         add_settings_field(MosingpassPlugin::SINGPASS_JWKS_ENDPOINT,
             'SingPass JWKS Endpoint',
             array($this, 'textHTML'),
