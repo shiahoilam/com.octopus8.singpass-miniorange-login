@@ -604,7 +604,8 @@ class MosingpassPlugin
 
                 if ($decoded_payload['iss'] !== $expectedIssuer) {
                     self::writeLog('ID Token validation failed: Invalid issuer', 'ID Token Validation');
-                    exit('Invalid issuer in ID Token');
+                    wp_redirect(site_url('/your-form-page-url?error=true'));
+                    exit;
                 }
 
                 $clientId = $_SESSION['client_id'] ?? ''; // Fetch your client ID from session
@@ -613,12 +614,14 @@ class MosingpassPlugin
                 if (is_array($decoded_payload['aud'])) {
                     if (!in_array($clientId, $decoded_payload['aud'])) {
                         self::writeLog('ID Token validation failed: Invalid audience', 'ID Token Validation');
-                        exit('Invalid audience in ID Token(Arr)');
+                        wp_redirect(site_url('/your-form-page-url?error=true'));
+                        exit;
                     }
                 } else {
                     if ($decoded_payload['aud'] !== $clientId) {
                         self::writeLog('ID Token validation failed: Invalid audience', 'ID Token Validation');
-                        exit('Invalid audience in ID Token');
+                        wp_redirect(site_url('/your-form-page-url?error=true'));
+                        exit;
                     }
                 }
 
@@ -626,7 +629,8 @@ class MosingpassPlugin
 
                 if ($decoded_payload['nonce'] !== $sessionNonce) {
                     self::writeLog('ID Token validation failed: Nonce does not match', 'ID Token Validation');
-                    exit('Invalid nonce in ID Token');
+                    wp_redirect(site_url('/your-form-page-url?error=true'));
+                    exit;
                 }
                 unset($_SESSION['nonce']);
 
@@ -817,30 +821,34 @@ class MosingpassPlugin
 
                 $decoded_payload = json_decode($verified_payload, true);
                 $expectedIssuer = self::base_url(get_option(self::SINGPASS_USERINFO_ENDPOINT));
-                
+
                 if ($decoded_payload['iss'] !== $expectedIssuer) {
                     self::writeLog('Userinfo validation failed: Invalid issuer', 'Userinfo Validation');
-                    exit('Invalid issuer in Userinfo response');
+                    wp_redirect(site_url('/your-form-page-url?error=true'));
+                    exit;
                 }
 
                 $clientId = $_SESSION['client_id'] ?? '';
-                
+
                 if (is_array($decoded_payload['aud'])) {
                     if (!in_array($clientId, $decoded_payload['aud'])) {
                         self::writeLog('Userinfo validation failed: Invalid audience', 'Userinfo Validation');
-                        exit('Invalid audience in Userinfo response (Arr)');
+                        wp_redirect(site_url('/your-form-page-url?error=true'));
+                        exit;
                     }
                 } else {
                     if ($decoded_payload['aud'] !== $clientId) {
                         self::writeLog('Userinfo validation failed: Invalid audience', 'Userinfo Validation');
-                        exit('Invalid audience in Userinfo response');
+                        wp_redirect(site_url('/your-form-page-url?error=true'));
+                        exit;
                     }
                 }
                 unset($_SESSION['client_id']);
 
                 if ($decoded_payload['sub'] !== $validatedIdToken['sub']) {
                     self::writeLog('Userinfo validation failed: Subject mismatch', 'Userinfo Validation');
-                    exit('Subject mismatch between Userinfo and ID Token');
+                    wp_redirect(site_url('/your-form-page-url?error=true'));
+                    exit;
                 }
 
                 self::writeLog($decoded_payload, 'Decoded Userinfo Payload');
