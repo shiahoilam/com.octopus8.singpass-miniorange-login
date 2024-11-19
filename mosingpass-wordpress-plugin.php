@@ -602,9 +602,11 @@ class MosingpassPlugin
                 $decoded_payload = json_decode($verified_payload, true); // To convert string to JSON array
                 $expectedIssuer = self::base_url(get_option(self::SINGPASS_TOKEN_ENDPOINT)); // Fetch the issuer URL from your settings
 
+                $redirect_uri = get_option(self::REDIRECT_URI);
+
                 if ($decoded_payload['iss'] !== $expectedIssuer) {
                     self::writeLog('ID Token validation failed: Invalid issuer', 'ID Token Validation');
-                    wp_redirect(site_url('/singpass-testing-page?error=true'));
+                    wp_redirect("$redirect_uri?error=true");
                     exit;
                 }
 
@@ -614,13 +616,13 @@ class MosingpassPlugin
                 if (is_array($decoded_payload['aud'])) {
                     if (!in_array($clientId, $decoded_payload['aud'])) {
                         self::writeLog('ID Token validation failed: Invalid audience', 'ID Token Validation');
-                        wp_redirect(site_url('/singpass-testing-page?error=true'));
+                        wp_redirect("$redirect_uri?error=true");
                         exit;
                     }
                 } else {
                     if ($decoded_payload['aud'] !== $clientId) {
                         self::writeLog('ID Token validation failed: Invalid audience', 'ID Token Validation');
-                        wp_redirect(site_url('/singpass-testing-page?error=true'));
+                        wp_redirect("$redirect_uri?error=true");
                         exit;
                     }
                 }
@@ -629,7 +631,7 @@ class MosingpassPlugin
 
                 if ($decoded_payload['nonce'] !== $sessionNonce) {
                     self::writeLog('ID Token validation failed: Nonce does not match', 'ID Token Validation');
-                    wp_redirect(site_url('/singpass-testing-page?error=true'));
+                    wp_redirect("$redirect_uri?error=true");
                     exit;
                 }
                 unset($_SESSION['nonce']);
@@ -822,9 +824,11 @@ class MosingpassPlugin
                 $decoded_payload = json_decode($verified_payload, true);
                 $expectedIssuer = self::base_url(get_option(self::SINGPASS_USERINFO_ENDPOINT));
 
+                $redirect_uri = get_option(self::REDIRECT_URI);
+
                 if ($decoded_payload['iss'] !== $expectedIssuer) {
                     self::writeLog('Userinfo validation failed: Invalid issuer', 'Userinfo Validation');
-                    wp_redirect(site_url('/singpass-testing-page?error=true'));
+                    wp_redirect("$redirect_uri?error=true");
                     exit;
                 }
 
@@ -833,13 +837,13 @@ class MosingpassPlugin
                 if (is_array($decoded_payload['aud'])) {
                     if (!in_array($clientId, $decoded_payload['aud'])) {
                         self::writeLog('Userinfo validation failed: Invalid audience', 'Userinfo Validation');
-                        wp_redirect(site_url('/singpass-testing-page?error=true'));
+                        wp_redirect("$redirect_uri?error=true");
                         exit;
                     }
                 } else {
                     if ($decoded_payload['aud'] !== $clientId) {
                         self::writeLog('Userinfo validation failed: Invalid audience', 'Userinfo Validation');
-                        wp_redirect(site_url('/singpass-testing-page?error=true'));
+                        wp_redirect("$redirect_uri?error=true");
                         exit;
                     }
                 }
@@ -847,7 +851,7 @@ class MosingpassPlugin
 
                 if ($decoded_payload['sub'] !== $validatedIdToken['sub']) {
                     self::writeLog('Userinfo validation failed: Subject mismatch', 'Userinfo Validation');
-                    wp_redirect(site_url('/singpass-testing-page?error=true'));
+                    wp_redirect("$redirect_uri?error=true");
                     exit;
                 }
 
@@ -857,7 +861,7 @@ class MosingpassPlugin
                 set_userinfo_data($verified_payload);
 
                 // Redirect to the NinjaForm page
-                wp_redirect(site_url('/singpass-testing-page?singpass=true')); // Replace with your form URL
+                wp_redirect("$redirect_uri?singpass=true");
                 exit;
             } catch (Exception $e) {
                 self::writeLog($e->getMessage());
