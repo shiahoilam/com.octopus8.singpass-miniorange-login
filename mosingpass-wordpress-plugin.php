@@ -225,7 +225,9 @@ class MosingpassPlugin
         if (session_id() == '' || !isset($_SESSION))
             session_start();
         $_SESSION['oauth2state'] = $state;
+        $_SESSION['nonce'] = $nonce;
         $_SESSION['appname'] = $appname;
+        $_SESSION['client_id'] = $app['clientid'];
 
         self::writeLog($authorizationUrl, 'Authorization Request');
         header('Location: ' . $authorizationUrl);
@@ -328,6 +330,12 @@ class MosingpassPlugin
             self::writeLog($code, 'code');
             self::writeLog($state, 'state');
             //            self::writeLog($currentapp, 'currentapp');
+
+            if ($state !== $_SESSION['oauth2state']) {
+                self::writeLog('State does not match!', 'State Validation');
+                exit('Invalid state parameter');
+            }
+            unset($_SESSION['oauth2state']);
 
             $tokenendpoint = $currentapp['accesstokenurl'];
             $singpass_client = $currentapp['clientid'];
@@ -589,8 +597,42 @@ class MosingpassPlugin
                     $signature,
                 );
                 $verified_payload = $jw_verified_response->getPayload();
-                self::writeLog($verified_payload, 'success_key');
                 // print("Id token: Successfully verified JWS: " . $verified_payload);
+
+                $decoded_payload = json_decode($verified_payload, true); // To convert string to JSON array
+                $expectedIssuer = self::base_url(get_option(self::SINGPASS_TOKEN_ENDPOINT)); // Fetch the issuer URL from your settings
+
+                if ($decoded_payload['iss'] !== $expectedIssuer) {
+                    self::writeLog('ID Token validation failed: Invalid issuer', 'ID Token Validation');
+                    exit('Invalid issuer in ID Token');
+                }
+
+                $clientId = $_SESSION['client_id'] ?? ''; // Fetch your client ID from session
+
+                // Check if 'aud' is an array or a string
+                if (is_array($decoded_payload['aud'])) {
+                    if (!in_array($clientId, $decoded_payload['aud'])) {
+                        self::writeLog('ID Token validation failed: Invalid audience', 'ID Token Validation');
+                        exit('Invalid audience in ID Token(Arr)');
+                    }
+                } else {
+                    if ($decoded_payload['aud'] !== $clientId) {
+                        self::writeLog('ID Token validation failed: Invalid audience', 'ID Token Validation');
+                        exit('Invalid audience in ID Token');
+                    }
+                }
+
+                $sessionNonce = $_SESSION['nonce'] ?? '';
+
+                if ($decoded_payload['nonce'] !== $sessionNonce) {
+                    self::writeLog('ID Token validation failed: Nonce does not match', 'ID Token Validation');
+                    exit('Invalid nonce in ID Token');
+                }
+                unset($_SESSION['nonce']);
+
+                self::writeLog($decoded_payload, 'Decoded ID Token Payload');
+
+                return $decoded_payload;
             } catch (Exception $e) {
                 self::writeLog($e->getMessage());
                 print ('nonserializable with public_sig_JWK');
@@ -621,7 +663,7 @@ class MosingpassPlugin
         exit;
     }
 
-    public static function getUserInfo($accessToken)
+    public static function getUserInfo($accessToken, $validatedIdToken)
     {
         $userinfo_endpoint = get_option(self::SINGPASS_USERINFO_ENDPOINT);
 
@@ -771,20 +813,44 @@ class MosingpassPlugin
                     $signature,
                 );
                 $verified_payload = $jw_verified_response->getPayload();
-                self::writeLog($verified_payload, 'success_key');
                 // print("\nAccess token: Successfully decrypted JWE & verified JWS: " . $verified_payload);
 
-                if ($verified_payload) {
-                    // Store the user information temporarily
-                    // set_transient('singpass_user_data', $verified_payload, 300); // Store for 5 minutes
-
-                    //alternative way rather than set_transient
-                    set_userinfo_data($verified_payload);
-
-                    // Redirect to the NinjaForm page
-                    wp_redirect(site_url('/singpass-testing-page?singpass=true')); // Replace with your form URL
-                    exit;
+                $decoded_payload = json_decode($verified_payload, true);
+                $expectedIssuer = self::base_url(get_option(self::SINGPASS_USERINFO_ENDPOINT));
+                
+                if ($decoded_payload['iss'] !== $expectedIssuer) {
+                    self::writeLog('Userinfo validation failed: Invalid issuer', 'Userinfo Validation');
+                    exit('Invalid issuer in Userinfo response');
                 }
+
+                $clientId = $_SESSION['client_id'] ?? '';
+                
+                if (is_array($decoded_payload['aud'])) {
+                    if (!in_array($clientId, $decoded_payload['aud'])) {
+                        self::writeLog('Userinfo validation failed: Invalid audience', 'Userinfo Validation');
+                        exit('Invalid audience in Userinfo response (Arr)');
+                    }
+                } else {
+                    if ($decoded_payload['aud'] !== $clientId) {
+                        self::writeLog('Userinfo validation failed: Invalid audience', 'Userinfo Validation');
+                        exit('Invalid audience in Userinfo response');
+                    }
+                }
+                unset($_SESSION['client_id']);
+
+                if ($decoded_payload['sub'] !== $validatedIdToken['sub']) {
+                    self::writeLog('Userinfo validation failed: Subject mismatch', 'Userinfo Validation');
+                    exit('Subject mismatch between Userinfo and ID Token');
+                }
+
+                self::writeLog($decoded_payload, 'Decoded Userinfo Payload');
+
+                //alternative way rather than set_transient
+                set_userinfo_data($verified_payload);
+
+                // Redirect to the NinjaForm page
+                wp_redirect(site_url('/singpass-testing-page?singpass=true')); // Replace with your form URL
+                exit;
             } catch (Exception $e) {
                 self::writeLog($e->getMessage());
                 print ('nonserializable with public_sig_JWK');

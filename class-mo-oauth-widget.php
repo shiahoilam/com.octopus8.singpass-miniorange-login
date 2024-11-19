@@ -12,7 +12,7 @@ class MOOAuth_Widget extends WP_Widget
         add_action('init', array($this, 'mo_oauth_start_session'));
         add_action('wp_logout', array($this, 'mo_oauth_end_session'));
         add_action('login_form', array($this, 'mo_oauth_wplogin_form_button'));
-        parent::__construct('mooauth_widget', MO_OAUTH_ADMIN_MENU, array('description' => __('Login to Apps with OAuth', 'flw'),));
+        parent::__construct('mooauth_widget', MO_OAUTH_ADMIN_MENU, array('description' => __('Login to Apps with OAuth', 'flw'), ));
 
     }
 
@@ -39,9 +39,8 @@ class MOOAuth_Widget extends WP_Widget
                         $this->mo_oauth_wplogin_form_style();
                         $logo_class = $this->mo_oauth_client_login_button_logo($app['appId']);
                         $btn_text = '<div class=" mo_oauth_login_button_text "><i class="' . esc_attr($logo_class) . ' mo_oauth_login_button_icon"></i>Login with ' . esc_attr(ucwords($key)) . '</div>';
-                        if($key === get_option(MosingpassPlugin::APP_NAME))
-                        {
-                            $btn_text = '<div class="singpass-header-btn">Log in with <img src="' . plugin_dir_url( __FILE__ ) . '/images/singpass-login-icon.svg" alt="SingPass"></div>';
+                        if ($key === get_option(MosingpassPlugin::APP_NAME)) {
+                            $btn_text = '<div class="singpass-header-btn">Log in with <img src="' . plugin_dir_url(__FILE__) . '/images/singpass-login-icon.svg" alt="SingPass"></div>';
                         }
                         echo '
 					<script>
@@ -58,30 +57,30 @@ class MOOAuth_Widget extends WP_Widget
 						<div id="mo_oauth_login_button_field" style="height:40px;margin-top:20px;">
 							<div id="mo_oauth_login_button">
 							<a class=" mo_oauth_button_div" style="text-decoration:none" href="javascript:void(0)" onClick="moOAuthLoginNew(\'' . esc_attr($key) . '\')">
-							' . $btn_text  .
+							' . $btn_text .
                             '</a></div>
 						</div>
 					</div>';
-/*
-                        echo '
-					<script>
-					window.onload = function() {
-						var target_btn = document.getElementById("mo_oauth_widget_parent");
-						var before_element = document.querySelector(" #wp-submit ");
-						before_element.after(target_btn);
-					};
-					</script>
-					<div id="mo_oauth_widget_parent" >
-						<div class="mo_oauth_or_division" style="text-align:center">
-							<br><br><b>OR</b>
-						</div>
-						<div id="mo_oauth_login_button_fie		<divyle="height:40px;margin-top:20px;">
-							<div id="mo_oauth_login_button">
-								<a class="mo_oauth_button_div button-primary " style="text-decoration:none" href="javascript:void(0)" onClick="moOAuthLoginNew(\'' . esc_attr($key) . '\')"><div class=" mo_oauth_login_button_text "><i class="' . esc_attr($logo_class) . ' mo_oauth_login_button_icon"></i>Login with ' . esc_attr(ucwords($key)) . '</div></a>
-							</div>
-						</div>
-					</div>';
-*/
+                        /*
+                                                echo '
+                                            <script>
+                                            window.onload = function() {
+                                                var target_btn = document.getElementById("mo_oauth_widget_parent");
+                                                var before_element = document.querySelector(" #wp-submit ");
+                                                before_element.after(target_btn);
+                                            };
+                                            </script>
+                                            <div id="mo_oauth_widget_parent" >
+                                                <div class="mo_oauth_or_division" style="text-align:center">
+                                                    <br><br><b>OR</b>
+                                                </div>
+                                                <div id="mo_oauth_login_button_fie		<divyle="height:40px;margin-top:20px;">
+                                                    <div id="mo_oauth_login_button">
+                                                        <a class="mo_oauth_button_div button-primary " style="text-decoration:none" href="javascript:void(0)" onClick="moOAuthLoginNew(\'' . esc_attr($key) . '\')"><div class=" mo_oauth_login_button_text "><i class="' . esc_attr($logo_class) . ' mo_oauth_login_button_icon"></i>Login with ' . esc_attr(ucwords($key)) . '</div></a>
+                                                    </div>
+                                                </div>
+                                            </div>';
+                        */
                     }
                 }
             }
@@ -244,7 +243,7 @@ function mooauth_login_validate()
         }
 
         if (isset($_REQUEST['test']))
-           setcookie("mo_oauth_test", true, 0, '/', '', true, true);
+            setcookie("mo_oauth_test", true, 0, '/', '', true, true);
         else
             setcookie("mo_oauth_test", false, 0, '/', '', true, true);
 
@@ -469,8 +468,16 @@ function mooauth_login_validate()
                             $currentapp['send_headers'] = false;
                         if (!isset($currentapp['send_body']))
                             $currentapp['send_body'] = false;
-                        $tokenResponse = $mo_oauth_handler->getIdToken($currentapp['accesstokenurl'], 'authorization_code',
-                            $currentapp['clientid'], $currentapp['clientsecret'], sanitize_text_field($_GET['code']), $currentapp['redirecturi'], $currentapp['send_headers'], $currentapp['send_body']);
+                        $tokenResponse = $mo_oauth_handler->getIdToken(
+                            $currentapp['accesstokenurl'],
+                            'authorization_code',
+                            $currentapp['clientid'],
+                            $currentapp['clientsecret'],
+                            sanitize_text_field($_GET['code']),
+                            $currentapp['redirecturi'],
+                            $currentapp['send_headers'],
+                            $currentapp['send_body']
+                        );
 
                         $idToken = isset($tokenResponse["id_token"]) ? $tokenResponse["id_token"] : $tokenResponse["access_token"];
 
@@ -536,17 +543,19 @@ function mooauth_login_validate()
                                     MOOAuth_Debug::mo_oauth_log($idToken);
                                     $resourceOwner = MosingpassPlugin::getResourceOwnerFromIdToken($idToken);
                                     MOOAuth_Debug::mo_oauth_log('Resource Owner Response => ' . json_encode($resourceOwner));
-                                }
 
-                                $accessToken = isset($tokenResponse["access_token"]) ? $tokenResponse["access_token"] : null;
-                                if(!$accessToken) {
-                                    MOOAuth_Debug::mo_oauth_log('Token Response Recieved => ERROR : Invalid token received.');
-                                    exit('Invalid token received.');
-                                } else {
-                                    MOOAuth_Debug::mo_oauth_log('Access Token => ');
-                                    MOOAuth_Debug::mo_oauth_log($accessToken);
-                                    $userInfo = MosingpassPlugin::getUserInfo($accessToken);
-                                    MOOAuth_Debug::mo_oauth_log('User Info Response => ' . json_encode($userInfo));
+                                    if ($resourceOwner) {
+                                        $accessToken = isset($tokenResponse["access_token"]) ? $tokenResponse["access_token"] : null;
+                                        if (!$accessToken) {
+                                            MOOAuth_Debug::mo_oauth_log('Token Response Recieved => ERROR : Invalid token received.');
+                                            exit('Invalid token received.');
+                                        } else {
+                                            MOOAuth_Debug::mo_oauth_log('Access Token => ');
+                                            MOOAuth_Debug::mo_oauth_log($accessToken);
+                                            $userInfo = MosingpassPlugin::getUserInfo($accessToken, $resourceOwner);
+                                            MOOAuth_Debug::mo_oauth_log('User Info Response => ' . json_encode($userInfo));
+                                        }
+                                    }
                                 }
                             }
                         } catch (Exception $e) {
