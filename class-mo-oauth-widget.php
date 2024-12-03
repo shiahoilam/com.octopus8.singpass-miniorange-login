@@ -256,7 +256,7 @@ function mooauth_login_validate()
             try {
                 if (class_exists('MosingpassPlugin')) {
                     MosingpassPlugin::writeLog($appname, 'appname');
-                    MosingpassPlugin::writeLog($app, 'app');
+                    // MosingpassPlugin::writeLog($app, 'app');
                 }
             } catch (Exception $e) {
 

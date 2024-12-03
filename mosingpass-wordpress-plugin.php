@@ -149,7 +149,7 @@ class MosingpassPlugin
     protected static function getJWKS(): array
     {
         $public_jwks = json_decode(get_option(self::PUBLIC_JWKS));
-        self::writeLog($public_jwks, 'public_jwks');
+        // self::writeLog($public_jwks, 'public_jwks');
         foreach ($public_jwks->{'keys'} as $public_jwk) {
             if (strcmp($public_jwk->{'use'}, 'sig') == 0) {
                 $sig_kid = $public_jwk->{'kid'};
@@ -162,7 +162,7 @@ class MosingpassPlugin
         }
 
         $private_jwks = json_decode(get_option(self::PRIVATE_JWKS));
-        self::writeLog($private_jwks, 'private_jwks');
+        // self::writeLog($private_jwks, 'private_jwks');
         foreach ($private_jwks->{'keys'} as $private_jwk) {
             if (strcmp($private_jwk->{'use'}, 'sig') == 0) {
                 $private_sig_jwk = json_decode(json_encode($private_jwk), true);
@@ -171,12 +171,12 @@ class MosingpassPlugin
                 $private_enc_jwk = json_decode(json_encode($private_jwk), true);
             }
         }
-        self::writeLog($sig_kid, 'sig_kid');
-        self::writeLog($enc_kid, 'enc_kid');
-        self::writeLog($public_sig_jwk, 'sig_kid');
-        self::writeLog($public_enc_jwk, 'enc_kid');
-        self::writeLog($private_sig_jwk, 'sig_kid');
-        self::writeLog($private_enc_jwk, 'enc_kid');
+        // self::writeLog($sig_kid, 'sig_kid');
+        // self::writeLog($enc_kid, 'enc_kid');
+        // self::writeLog($public_sig_jwk, 'sig_kid');
+        // self::writeLog($public_enc_jwk, 'enc_kid');
+        // self::writeLog($private_sig_jwk, 'sig_kid');
+        // self::writeLog($private_enc_jwk, 'enc_kid');
 
         return array($sig_kid, $public_sig_jwk, $enc_kid, $public_enc_jwk, $private_sig_jwk, $private_enc_jwk);
     }
@@ -222,12 +222,9 @@ class MosingpassPlugin
             "&nonce=" . $nonce;
         ;
 
-        if (session_id() == '' || !isset($_SESSION))
-            session_start();
-        $_SESSION['oauth2state'] = $state;
-        $_SESSION['nonce'] = $nonce;
-        $_SESSION['appname'] = $appname;
-        $_SESSION['client_id'] = $app['clientid'];
+        set_transient('oauth2state', $state, 60);
+        set_transient('nonce', $nonce, 60);
+        set_transient('client_id', $app['clientid'], 60);
 
         self::writeLog($authorizationUrl, 'Authorization Request');
         header('Location: ' . $authorizationUrl);
@@ -237,7 +234,7 @@ class MosingpassPlugin
     {
         // Split the token by '.' and count the segments
         $parts = explode('.', $token);
-        self::writeLog($parts, "Split Parts");
+        // self::writeLog($parts, "Split Parts");
         return count($parts) === 5;
     }
 
@@ -306,7 +303,7 @@ class MosingpassPlugin
             }
         }
 
-        self::writeLog('Key with kid ' . $kid . ' not found after JWKS refresh.');
+        self::writeLog('Key not found after JWKS refresh.', 'getKeyForKid');
         return null;
     }
 
@@ -327,15 +324,17 @@ class MosingpassPlugin
 
             $code = $_GET['code'];
             $state = $_GET['state'];
-            self::writeLog($code, 'code');
-            self::writeLog($state, 'state');
+            // self::writeLog($code, 'code');
+            // self::writeLog($state, 'state');
+            $stored_state = get_transient('oauth2state');
+            // self::writeLog($stored_state, 'Stored state');
             //            self::writeLog($currentapp, 'currentapp');
 
-            if ($state !== $_SESSION['oauth2state']) {
+            if ($state !== $stored_state) {
                 self::writeLog('State does not match!', 'State Validation');
                 exit('Invalid state parameter');
             }
-            unset($_SESSION['oauth2state']);
+            delete_transient('oauth2state');
 
             $tokenendpoint = $currentapp['accesstokenurl'];
             $singpass_client = $currentapp['clientid'];
@@ -354,12 +353,12 @@ class MosingpassPlugin
             ) = self::getJWKS();
 
             $sig_private_jwk = new JWK($private_sig_jwk);
-            self::writeLog($sig_private_jwk, log_header: 'sig_private_jwk');
+            // self::writeLog($sig_private_jwk, log_header: 'sig_private_jwk');
 
             $algorithmManager = new AlgorithmManager([
                 new ES256(),
             ]);
-            self::writeLog($algorithmManager, 'algorithmManager');
+            // self::writeLog($algorithmManager, 'algorithmManager');
             $jwsBuilder = new JWSBuilder($algorithmManager);
 
             $now = time();
@@ -386,12 +385,12 @@ class MosingpassPlugin
                 self::writeLog($e->getMessage(), 'Payload');
                 print ($e->getMessage());
             }
-            self::writeLog($payload, 'Payload');
-            self::writeLog($jws, 'jws');
+            // self::writeLog($payload, 'Payload');
+            // self::writeLog($jws, 'jws');
             $serializer = new SignatureCompactSerializer(); // The serializer
             $client_assertion = $serializer->serialize($jws, 0);
             error_log("sig_kid value: " . print_r($sig_kid, true));
-            self::writeLog($client_assertion, 'ClientAssertion');
+            // self::writeLog($client_assertion, 'ClientAssertion');
 
             $body = array(
                 'code' => $code,
@@ -402,7 +401,7 @@ class MosingpassPlugin
                 'grant_type' => 'authorization_code',
                 'redirect_uri' => $redirect_uri
             );
-            self::writeLog($body, 'Body');
+            // self::writeLog($body, 'Body');
 
             $headers = array(
                 'Accept: application/json',
@@ -431,7 +430,7 @@ class MosingpassPlugin
                     wp_die(esc_html($response));
                 }
                 $response = $response['body'];
-                self::writeLog('Token Response Received => ' . $response);
+                self::writeLog('Token Response Received');
                 if (!is_array(json_decode($response, true))) {
                     echo "<b>Response : </b><br>";
                     print_r(esc_html($response));
@@ -491,7 +490,7 @@ class MosingpassPlugin
         if (self::isJWE($token)) {
             try {
                 $jwe = $encryption_serializer->unserialize($token);
-                self::writeLog($jwe, 'JWE');
+                // self::writeLog($jwe, 'JWE');
             } catch (Exception $e) {
                 self::writeLog($e->getMessage(), 'nonserializable with deserialized_JWE');
             }
@@ -538,7 +537,7 @@ class MosingpassPlugin
                     $recipient
                 );
                 $unencrypted_payload = $jw_decrypted_response->getPayload();
-                self::writeLog($unencrypted_payload, 'success_key');
+                // self::writeLog($unencrypted_payload, 'success_key');
             } catch (Exception $e) {
                 print ('nonserializable with private_enc_JWK');
             }
@@ -551,7 +550,7 @@ class MosingpassPlugin
         if ($unencrypted_payload) {
             try {
                 $jws = $signatureSerializerManager->unserialize($unencrypted_payload);
-                self::writeLog($jws, 'JWS');
+                // self::writeLog($jws, 'JWS');
             } catch (Exception $e) {
                 self::writeLog($e->getMessage(), 'nonserializable with deserialized_JWS');
             }
@@ -570,11 +569,11 @@ class MosingpassPlugin
         // Extract `kid` from the token header
         $jwsHeader = json_decode(base64_decode(explode('.', $unencrypted_payload)[0]), true);
         $jws_kid = $jwsHeader['kid'];
-        self::writeLog($jws_kid, 'JWS Header kid');
+        // self::writeLog($jws_kid, 'JWS Header kid');
 
         // Retrieve Singpass's key using `kid`
         $singpass_key = self::getKeyForKid($jws_kid);
-        self::writeLog($singpass_key, "Found kid");
+        // self::writeLog($singpass_key, "Found kid");
 
         if ($jws) {
             if ($jwsVerifier->verifyWithKey($jws, $singpass_key, 0)) {
@@ -589,7 +588,7 @@ class MosingpassPlugin
                 null,
             );
 
-            self::writeLog($success_key);
+            // self::writeLog($success_key);
             try {
                 $jw_verified_response = $jwsLoader->loadAndVerifyWithKey(
                     $unencrypted_payload,
@@ -610,7 +609,7 @@ class MosingpassPlugin
                     exit;
                 }
 
-                $clientId = $_SESSION['client_id'] ?? ''; // Fetch your client ID from session
+                $clientId = get_transient('client_id') ?? '';
 
                 // Check if 'aud' is an array or a string
                 if (is_array($decoded_payload['aud'])) {
@@ -627,16 +626,16 @@ class MosingpassPlugin
                     }
                 }
 
-                $sessionNonce = $_SESSION['nonce'] ?? '';
+                $sessionNonce = get_transient('nonce') ?? '';
 
                 if ($decoded_payload['nonce'] !== $sessionNonce) {
                     self::writeLog('ID Token validation failed: Nonce does not match', 'ID Token Validation');
                     wp_redirect("$redirect_uri?error=true");
                     exit;
                 }
-                unset($_SESSION['nonce']);
+                delete_transient('nonce');
 
-                self::writeLog($decoded_payload, 'Decoded ID Token Payload');
+                self::writeLog("Decoded ID Token Payload", "getResourceOwnerFromIdToken");
 
                 return $decoded_payload;
             } catch (Exception $e) {
@@ -716,7 +715,7 @@ class MosingpassPlugin
 
         try {
             $jwe = $encryption_serializer->unserialize($jweToken);
-            self::writeLog($jwe, 'JWE');
+            // self::writeLog($jwe, 'JWE');
         } catch (Exception $e) {
             self::writeLog($e->getMessage(), 'nonserializable with deserialized_JWE');
         }
@@ -762,7 +761,7 @@ class MosingpassPlugin
                     $recipient
                 );
                 $unencrypted_payload = $jw_decrypted_response->getPayload();
-                self::writeLog($unencrypted_payload, 'success_key');
+                // self::writeLog($unencrypted_payload, 'success_key');
             } catch (Exception $e) {
                 print ('nonserializable with private_enc_JWK');
             }
@@ -773,7 +772,7 @@ class MosingpassPlugin
         if ($unencrypted_payload) {
             try {
                 $jws = $signatureSerializerManager->unserialize($unencrypted_payload);
-                self::writeLog($jws, 'JWS');
+                // self::writeLog($jws, 'JWS');
             } catch (Exception $e) {
                 self::writeLog($e->getMessage(), 'nonserializable with deserialized_JWS');
             }
@@ -792,11 +791,11 @@ class MosingpassPlugin
         // Extract `kid` from the token header
         $jwsHeader = json_decode(base64_decode(explode('.', $unencrypted_payload)[0]), true);
         $jws_kid = $jwsHeader['kid'];
-        self::writeLog($jws_kid, 'JWS Header kid');
+        // self::writeLog($jws_kid, 'JWS Header kid');
 
         // Retrieve Singpass's key using `kid`
         $singpass_key = self::getKeyForKid($jws_kid);
-        self::writeLog($singpass_key, "Found kid");
+        // self::writeLog($singpass_key, "Found kid");
 
         if ($jws) {
             if ($jwsVerifier->verifyWithKey($jws, $singpass_key, 0)) {
@@ -811,7 +810,7 @@ class MosingpassPlugin
                 null,
             );
 
-            self::writeLog($success_key);
+            // self::writeLog($success_key);
             try {
                 $jw_verified_response = $jwsLoader->loadAndVerifyWithKey(
                     $unencrypted_payload,
@@ -832,7 +831,7 @@ class MosingpassPlugin
                     exit;
                 }
 
-                $clientId = $_SESSION['client_id'] ?? '';
+                $clientId = get_transient('client_id') ?? '';
 
                 if (is_array($decoded_payload['aud'])) {
                     if (!in_array($clientId, $decoded_payload['aud'])) {
@@ -847,7 +846,7 @@ class MosingpassPlugin
                         exit;
                     }
                 }
-                unset($_SESSION['client_id']);
+                delete_transient('client_id');
 
                 if ($decoded_payload['sub'] !== $validatedIdToken['sub']) {
                     self::writeLog('Userinfo validation failed: Subject mismatch', 'Userinfo Validation');
@@ -855,13 +854,27 @@ class MosingpassPlugin
                     exit;
                 }
 
-                self::writeLog($decoded_payload, 'Decoded Userinfo Payload');
+                self::writeLog("Payload decoded", 'getUserInfo');
 
                 //alternative way rather than set_transient
                 set_userinfo_data($verified_payload);
 
+                $domain = $_SERVER['HTTP_HOST'];
+                if (strpos($domain, '.') === 0) {
+                    $domain = ltrim($domain, '.'); // Remove leading dot if it exists
+                }
+
+                setcookie(session_name(), session_id(), [
+                    'path' => '/',
+                    'domain' => $domain,
+                    'secure' => is_ssl(),
+                    'httponly' => true,
+                ]);
+
                 // Redirect to the NinjaForm page
-                wp_redirect("$redirect_uri?singpass=true");
+                $redirectUrl = "$redirect_uri?singpass=true";
+                $redirect_uri = add_query_arg(['PHPSESSID' => session_id()], $redirectUrl);
+                wp_redirect($redirect_uri);
                 exit;
             } catch (Exception $e) {
                 self::writeLog($e->getMessage());
