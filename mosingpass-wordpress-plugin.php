@@ -197,8 +197,9 @@ class MosingpassPlugin
     /**
      * @param string $appname
      * @param $app
+     * @param $challenge
      */
-    public static function loadSingPassTest(string $appname, $app): void
+    public static function loadSingPassTest(string $appname, $app, $challenge): void
     {
         $state = base64_encode($appname);
         $nonce = $state;
@@ -219,7 +220,9 @@ class MosingpassPlugin
             "&redirect_uri=" . $redirect_uri .
             "&response_type=code" .
             "&state=" . $state .
-            "&nonce=" . $nonce;
+            "&nonce=" . $nonce.
+            "&code_challenge_method=S256".
+            "&code_challenge=" . $challenge;
         ;
 
         set_transient('oauth2state', $state, 60);
@@ -315,9 +318,10 @@ class MosingpassPlugin
 
     /**
      * @param bool $currentapp
+     * @param $verifier
      * @return string
      */
-    public static function getSingPassAuthorizationToken($currentapp)
+    public static function getSingPassAuthorizationToken($currentapp, $verifier)
     {
         $accessToken = "";
         try {
@@ -391,6 +395,7 @@ class MosingpassPlugin
             $client_assertion = $serializer->serialize($jws, 0);
             error_log("sig_kid value: " . print_r($sig_kid, true));
             // self::writeLog($client_assertion, 'ClientAssertion');
+            // self::writeLog($verifier, 'code_verifier');
 
             $body = array(
                 'code' => $code,
@@ -399,7 +404,8 @@ class MosingpassPlugin
                 'client_id' => $singpass_client,
                 'scope' => 'openid',
                 'grant_type' => 'authorization_code',
-                'redirect_uri' => $redirect_uri
+                'redirect_uri' => $redirect_uri,
+                'code_verifier' => $verifier
             );
             // self::writeLog($body, 'Body');
 

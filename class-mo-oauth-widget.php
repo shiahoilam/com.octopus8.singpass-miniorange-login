@@ -228,8 +228,18 @@ function mooauth_update_email_to_username_attr($currentappname)
     update_option('mo_oauth_apps_list', $appslist);
 }
 
+function pkce()
+{
+  $verifier = rtrim(strtr(base64_encode(random_bytes(64)), '+/', '-_'), '=');
+  $hashed = hash('sha256', $verifier, true);
+  $challenge = rtrim(strtr(base64_encode($hashed), '+/', '-_'), '=');
+
+  return ['verifier'=>$verifier,'challenge'=>$challenge];
+}
+
 function mooauth_login_validate()
 {
+    $pkce = pkce();
     $singpassappname = "singpassappname";
     if (class_exists('MosingpassPlugin')) {
         $singpassappname = get_option(MosingpassPlugin::APP_NAME);
@@ -272,7 +282,12 @@ function mooauth_login_validate()
                 try {
                     if (class_exists('MosingpassPlugin')) {
                         if ($appname === $singpassappname) {
-                            MosingpassPlugin::loadSingPassTest($appname, $app);
+                          if (session_id() == '' || !isset($_SESSION))
+                                session_start();
+                            $_SESSION['challenge'] = $pkce['challenge'];
+                            $_SESSION['verifier'] = $pkce['verifier'];
+                            MosingpassPlugin::writeLog('Saved PKCE in session. Challenge: ' . $pkce['challenge'] . ', Verifier: ' . $pkce['verifier']);
+                            MosingpassPlugin::loadSingPassTest($appname, $app, $pkce['challenge']);
                             exit();
                         }
                     }
@@ -510,7 +525,7 @@ function mooauth_login_validate()
                         try {
                             if (class_exists('MosingpassPlugin')) {
                                 MosingpassPlugin::writeLog($accessTokenUrl, 'OAuth Flow accessTokenUrl');
-                                $accessToken = $tokenResponse = MosingpassPlugin::getSingPassAuthorizationToken($currentapp);
+                                $accessToken = $tokenResponse = MosingpassPlugin::getSingPassAuthorizationToken($currentapp, $_SESSION['verifier']);
                             }
                         } catch (Exception $e) {
 
