@@ -97,6 +97,47 @@ class MosingpassPluginSettingsPage
         <?php
     }
 
+    function redirectURIsHTML($args)
+    {
+        $option_name = $args['theName'];
+        $values = get_option($option_name, []);
+        if (!is_array($values)) $values = [];
+
+        ?>
+        <div id="redirect-uri-wrapper">
+            <?php foreach ($values as $uri): ?>
+                <div class="redirect-uri-group" style="margin-bottom: 8px;">
+                    <input type="text" class="form-control" name="<?php echo $option_name; ?>[]" value="<?php echo esc_attr($uri); ?>" size="75" />
+                    <button type="button" class="button remove-uri" onclick="this.parentElement.remove()">Remove</button>
+                </div>
+            <?php endforeach; ?>
+            <?php if (empty($values)): ?>
+                <div class="redirect-uri-group" style="margin-bottom: 8px;">
+                    <input type="text" class="form-control" name="<?php echo $option_name; ?>[]" size="75" />
+                    <button type="button" class="button remove-uri" onclick="this.parentElement.remove()">Remove</button>
+                </div>
+            <?php endif; ?>
+        </div>
+        <button type="button" class="button" onclick="addRedirectUriField()">Add Redirect URI</button>
+
+        <script>
+            function addRedirectUriField() {
+                const container = document.getElementById('redirect-uri-wrapper');
+                const field = document.createElement('div');
+                field.className = 'redirect-uri-group';
+                field.style.marginBottom = '8px';
+                field.innerHTML = `
+                    <input type="text" class="form-control" name="<?php echo $option_name; ?>[]" size="75" />
+                    <button type="button" class="button remove-uri" onclick="this.parentElement.remove()">Remove</button>
+                `;
+                container.appendChild(field);
+            }
+        </script>
+        <?php
+    }
+
+
+
     /**
      * @param string $common_section
      * @param string $settings_page
@@ -217,15 +258,36 @@ class MosingpassPluginSettingsPage
             array('sanitize_callback' => 'sanitize_text_field',
                 'default' => ''));
 
-        add_settings_field(MosingpassPlugin::REDIRECT_URI,
-            'Redirect URI',
-            array($this, 'textHTML'),
+        // add_settings_field(MosingpassPlugin::REDIRECT_URI,
+        //     'Redirect URI',
+        //     array($this, 'textHTML'),
+        //     $settings_page,
+        //     $local_section,
+        //     array('theName' => MosingpassPlugin::REDIRECT_URI));
+        // register_setting("$slug._settings", MosingpassPlugin::REDIRECT_URI,
+        //     array('sanitize_callback' => 'sanitize_text_field',
+        //         'default' => ''));
+        add_settings_field(
+            MosingpassPlugin::REDIRECT_URI,
+            'Redirect URIs',
+            array($this, 'redirectURIsHTML'),
             $settings_page,
             $local_section,
-            array('theName' => MosingpassPlugin::REDIRECT_URI));
-        register_setting("$slug._settings", MosingpassPlugin::REDIRECT_URI,
-            array('sanitize_callback' => 'sanitize_text_field',
-                'default' => ''));
+            array('theName' => MosingpassPlugin::REDIRECT_URI)
+        );
+        register_setting(
+            "$slug._settings",
+            MosingpassPlugin::REDIRECT_URI,
+            array(
+                'sanitize_callback' => function ($value) {
+                    return array_values(array_filter(array_map('sanitize_text_field', $value)));
+                },
+                'default' => array()
+            )
+        );
+
+
+
 /*
  *     public const SHOW_QR = "mosp_show_qr";
     public const CREATE_NEW_USER = "mosp_create_new_user";

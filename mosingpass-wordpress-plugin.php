@@ -86,6 +86,54 @@ class MosingpassPlugin
 
     }
 
+
+    private static function getRedirectUri()
+    {
+        $allowed_uris = array_filter(array_map(
+            'trim',
+            is_array($raw = get_option(self::REDIRECT_URI)) ? $raw : explode("\n", $raw)
+        ));
+
+        $redirect_uri = $allowed_uris[0] ?? '/';
+
+        $from = $_COOKIE['postOAuthRedirectUrl'] ?? null;
+
+        if ($from) {
+            foreach ($allowed_uris as $allowed_uri) {
+                if (rtrim($from, '/') === rtrim($allowed_uri, '/')) {
+                    return $allowed_uri;
+                }
+            }
+        }
+
+        // Fallback: match best current page
+        $current_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? "https" : "http")
+            . '://' . ($_SERVER['HTTP_HOST'] ?? '')
+            . ($_SERVER['REQUEST_URI'] ?? '');
+        $current_url = rtrim($current_url, '/');
+
+        $best_match = '';
+        $max_len = 0;
+
+        foreach ($allowed_uris as $allowed_uri) {
+            $normalized = rtrim($allowed_uri, '/');
+            if ($current_url === $normalized)
+                return $allowed_uri;
+
+            if (
+                stripos($current_url, $normalized) === 0 &&
+                (strlen($current_url) === strlen($normalized) || $current_url[strlen($normalized)] === '/')
+            ) {
+                if (strlen($normalized) > $max_len) {
+                    $best_match = $allowed_uri;
+                    $max_len = strlen($normalized);
+                }
+            }
+        }
+
+        return $best_match ?: $redirect_uri;
+    }
+
     /**
      * @param array $headerbody
      * @return array
@@ -213,7 +261,8 @@ class MosingpassPlugin
 
         $clientid = $app['clientid'];
         $scope = $app['scope'] ? $app['scope'] : "openid";
-        $redirect_uri = get_option(self::REDIRECT_URI);
+        // $redirect_uri = get_option(self::REDIRECT_URI);
+        $redirect_uri = self::getRedirectUri();
         $authorizationUrl = $authorizationUrl .
             "client_id=" . $clientid .
             "&scope=" . $scope .
@@ -284,7 +333,7 @@ class MosingpassPlugin
      * @param string $kid
      * @return JWK|null
      */
-    public static function getKeyForKid($kid): JWK|null
+    public static function getKeyForKid($kid)
     {
         $jwks_keys = self::fetchJWKSWithCache();
 
@@ -344,7 +393,8 @@ class MosingpassPlugin
             $singpass_client = $currentapp['clientid'];
             $singpass_uri = self::base_url(get_option(self::SINGPASS_OPENID_ENDPOINT));
 
-            $redirect_uri = get_option(self::REDIRECT_URI);
+            // $redirect_uri = get_option(self::REDIRECT_URI);
+            $redirect_uri = self::getRedirectUri();
             self::writeLog($redirect_uri, 'redirect_uri');
 
             list(
@@ -607,7 +657,8 @@ class MosingpassPlugin
                 $decoded_payload = json_decode($verified_payload, true); // To convert string to JSON array
                 $expectedIssuer = self::base_url(get_option(self::SINGPASS_TOKEN_ENDPOINT)); // Fetch the issuer URL from your settings
 
-                $redirect_uri = get_option(self::REDIRECT_URI);
+                // $redirect_uri = get_option(self::REDIRECT_URI);
+                $redirect_uri = self::getRedirectUri();
 
                 if ($decoded_payload['iss'] !== $expectedIssuer) {
                     self::writeLog('ID Token validation failed: Invalid issuer', 'ID Token Validation');
@@ -829,7 +880,8 @@ class MosingpassPlugin
                 $decoded_payload = json_decode($verified_payload, true);
                 $expectedIssuer = self::base_url(get_option(self::SINGPASS_USERINFO_ENDPOINT));
 
-                $redirect_uri = get_option(self::REDIRECT_URI);
+                // $redirect_uri = get_option(self::REDIRECT_URI);
+                $redirect_uri = self::getRedirectUri();
 
                 if ($decoded_payload['iss'] !== $expectedIssuer) {
                     self::writeLog('Userinfo validation failed: Invalid issuer', 'Userinfo Validation');
@@ -878,8 +930,16 @@ class MosingpassPlugin
                 ]);
 
                 // Redirect to the NinjaForm page
-                $redirectUrl = "$redirect_uri?singpass=true";
-                $redirect_uri = add_query_arg(['PHPSESSID' => session_id()], $redirectUrl);
+                // $redirectUrl = "$redirect_uri?singpass=true";
+                // $redirect_uri = add_query_arg(['PHPSESSID' => session_id()], $redirectUrl);
+                // wp_redirect($redirect_uri);
+                // exit;
+
+                $redirect_uri = add_query_arg([
+                    'singpass' => 'true',
+                    'PHPSESSID' => session_id(),
+                ], $redirect_uri);
+
                 wp_redirect($redirect_uri);
                 exit;
             } catch (Exception $e) {
@@ -901,7 +961,8 @@ class MosingpassPlugin
         wp_enqueue_script('singpass_script', plugin_dir_url(__FILE__) . 'js/singpass.js');
         wp_localize_script('singpass_script', 'singpass_vars', array(
             'state' => $state,
-            'redirectUri' => get_option(self::REDIRECT_URI),
+            // 'redirectUri' => get_option(self::REDIRECT_URI),
+            'redirectUri' => self::getRedirectUri(),
             'clientId' => $clientId
         ));
         //        echo '<script src="https://stg-id.singpass.gov.sg/static/ndi_embedded_auth.js"></script>';
